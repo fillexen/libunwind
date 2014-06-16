@@ -44,7 +44,7 @@ typedef struct
 			 been called. */
 } unw_trace_cache_t;
 
-static const unw_tdep_frame_t empty_frame = { 0, UNW_AARCH64_FRAME_OTHER, -1, -1, 0, -1, -1 };
+static const unw_tdep_frame_t empty_frame = { 0, UNW_AARCH64_FRAME_OTHER, -1, -1, 0, -1, -1, -1 };
 static define_lock (trace_init_lock);
 static pthread_once_t trace_cache_once = PTHREAD_ONCE_INIT;
 static sig_atomic_t trace_cache_once_happen;
@@ -229,6 +229,7 @@ trace_init_addr (unw_tdep_frame_t *f,
   f->cfa_reg_sp = -1;
   f->cfa_reg_offset = 0;
   f->fp_cfa_offset = -1;
+  f->lr_cfa_offset = -1;
   f->sp_cfa_offset = -1;
 
   /* Reinitialise cursor to this instruction - but undo next/prev RIP
@@ -257,10 +258,10 @@ trace_init_addr (unw_tdep_frame_t *f,
   if (ret == 0)
     f->last_frame = -1;
 
-  Debug (3, "frame va %lx type %d last %d cfa %s+%d fp @ cfa%+d sp @ cfa%+d\n",
+  Debug (3, "frame va %lx type %d last %d cfa %s+%d fp @ cfa%+d lr @ cfa%+d sp @ cfa%+d\n",
 	 f->virtual_address, f->frame_type, f->last_frame,
 	 f->cfa_reg_sp ? "sp" : "fp", f->cfa_reg_offset,
-	 f->fp_cfa_offset, f->sp_cfa_offset);
+	 f->fp_cfa_offset, f->lr_cfa_offset, f->sp_cfa_offset);
 
   return f;
 }
@@ -277,8 +278,6 @@ trace_lookup (unw_cursor_t *cursor,
 	      unw_word_t fp,
 	      unw_word_t sp)
 {
-  return NULL;
-
   /* First look up for previously cached information using cache as
      linear probing hash table with probe step of 1.  Majority of
      lookups should be completed within few steps, but it is very
@@ -455,10 +454,10 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       break;
     }
 
-    Debug (3, "frame va %lx type %d last %d cfa %s+%d fp @ cfa%+d sp @ cfa%+d\n",
+    Debug (3, "frame va %lx type %d last %d cfa %s+%d fp @ cfa%+d lr @ cfa%+d sp @ cfa%+d\n",
            f->virtual_address, f->frame_type, f->last_frame,
            f->cfa_reg_sp ? "sp" : "fp", f->cfa_reg_offset,
-           f->rbp_cfa_offset, f->rsp_cfa_offset);
+           f->fp_cfa_offset, f->lr_cfa_offset, f->sp_cfa_offset);
 
     assert (f->virtual_address == pc);
 
@@ -470,45 +469,47 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
     if (f->last_frame)
       break;
 
-#if 0
     /* Evaluate CFA and registers for the next frame. */
     switch (f->frame_type)
     {
-    case UNW_X86_64_FRAME_GUESSED:
+#if 0
+    case UNW_AARCH64_FRAME_GUESSED:
       /* Fall thru to standard processing after forcing validation. */
       c->validate = 1;
+#endif
 
-    case UNW_X86_64_FRAME_STANDARD:
+    case UNW_AARCH64_FRAME_STANDARD:
       /* Advance standard traceable frame. */
-      cfa = (f->cfa_reg_rsp ? rsp : rbp) + f->cfa_reg_offset;
-      ACCESS_MEM_FAST(ret, c->validate, d, cfa - 8, rip);
-      if (likely(ret >= 0) && likely(f->rbp_cfa_offset != -1))
-	ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->rbp_cfa_offset, rbp);
+      cfa = (f->cfa_reg_sp ? sp : fp) + f->cfa_reg_offset;
+      if (likely(f->lr_cfa_offset != -1))
+	ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->lr_cfa_offset, pc);
+      if (likely(ret >= 0) && likely(f->fp_cfa_offset != -1))
+	ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->fp_cfa_offset, fp);
 
-      /* Don't bother reading RSP from DWARF, CFA becomes new RSP. */
-      rsp = cfa;
+      /* Don't bother reading SP from DWARF, CFA becomes new SP. */
+      sp = cfa;
 
       /* Next frame needs to back up for unwind info lookup. */
       d->use_prev_instr = 1;
       break;
-
-    case UNW_X86_64_FRAME_SIGRETURN:
+#if 0
+    case UNW_AARCH64_FRAME_SIGRETURN:
       cfa = cfa + f->cfa_reg_offset; /* cfa now points to ucontext_t.  */
 
-      ACCESS_MEM_FAST(ret, c->validate, d, cfa + UC_MCONTEXT_GREGS_RIP, rip);
+      ACCESS_MEM_FAST(ret, c->validate, d, cfa + UC_MCONTEXT_GREGS_PC, pc);
       if (likely(ret >= 0))
-        ACCESS_MEM_FAST(ret, c->validate, d, cfa + UC_MCONTEXT_GREGS_RBP, rbp);
+        ACCESS_MEM_FAST(ret, c->validate, d, cfa + UC_MCONTEXT_GREGS_X29, fp);
       if (likely(ret >= 0))
-        ACCESS_MEM_FAST(ret, c->validate, d, cfa + UC_MCONTEXT_GREGS_RSP, rsp);
+        ACCESS_MEM_FAST(ret, c->validate, d, cfa + UC_MCONTEXT_GREGS_SP, sp);
 
       /* Resume stack at signal restoration point. The stack is not
          necessarily continuous here, especially with sigaltstack(). */
-      cfa = rsp;
+      cfa = sp;
 
       /* Next frame should not back up. */
       d->use_prev_instr = 0;
       break;
-
+#endif
     default:
       /* We cannot trace through this frame, give up and tell the
 	  caller we had to stop.  Data collected so far may still be
@@ -516,10 +517,9 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       ret = -UNW_ESTOPUNWIND;
       break;
     }
-#endif
 
     Debug (4, "new cfa 0x%lx pc 0x%lx sp 0x%lx fp 0x%lx\n",
-	   cfa, pc, sp, bp);
+	   cfa, pc, sp, fp);
 
     /* If we failed or ended up somewhere bogus, stop. */
     if (unlikely(ret < 0 || pc < 0x4000))

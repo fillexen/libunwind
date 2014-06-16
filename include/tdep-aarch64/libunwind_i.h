@@ -54,8 +54,9 @@ typedef struct
     int64_t last_frame     : 1;  /* non-zero if last frame in chain */
     int64_t cfa_reg_sp    : 1;  /* cfa dwarf base register is sp vs. fp */
     int64_t cfa_reg_offset : 30; /* cfa is at this offset from base register value */
-    int64_t fp_cfa_offset : 15; /* fp saved at this offset from cfa (-1 = not saved) */
-    int64_t sp_cfa_offset : 15; /* sp saved at this offset from cfa (-1 = not saved) */
+    int64_t fp_cfa_offset : 30; /* fp saved at this offset from cfa (-1 = not saved) */
+    int64_t lr_cfa_offset : 30; /* lr saved at this offset from cfa (-1 = not saved) */
+    int64_t sp_cfa_offset : 30; /* sp saved at this offset from cfa (-1 = not saved) */
   }
 unw_tdep_frame_t;
 
@@ -273,7 +274,7 @@ dwarf_put (struct dwarf_cursor *c, dwarf_loc_t loc, unw_word_t val)
 #define tdep_fetch_frame(c,ip,n)	do {} while(0)
 #define tdep_cache_frame(c,rs)		do {} while(0)
 #define tdep_reuse_frame(c,rs)		do {} while(0)
-#define tdep_stash_frame(c,rs)		do {} while(0)
+#define tdep_stash_frame		UNW_OBJ(tdep_stash_frame)
 #define tdep_trace			UNW_OBJ(tdep_trace)
 
 #ifdef UNW_LOCAL_ONLY
@@ -310,5 +311,7 @@ extern int tdep_access_reg (struct cursor *c, unw_regnum_t reg,
 extern int tdep_access_fpreg (struct cursor *c, unw_regnum_t reg,
 			      unw_fpreg_t *valp, int write);
 extern int tdep_trace (unw_cursor_t *cursor, void **addresses, int *n);
+extern void tdep_stash_frame (struct dwarf_cursor *c,
+			      struct dwarf_reg_state *rs);
 
 #endif /* AARCH64_LIBUNWIND_I_H */
