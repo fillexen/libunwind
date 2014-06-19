@@ -24,6 +24,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
 #include "unwind_i.h"
 //#include "ucontext_i.h"
+#include "offsets.h"
 #include <signal.h>
 #include <limits.h>
 
@@ -472,11 +473,9 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
     /* Evaluate CFA and registers for the next frame. */
     switch (f->frame_type)
     {
-#if 0
     case UNW_AARCH64_FRAME_GUESSED:
       /* Fall thru to standard processing after forcing validation. */
       c->validate = 1;
-#endif
 
     case UNW_AARCH64_FRAME_STANDARD:
       /* Advance standard traceable frame. */
@@ -492,15 +491,15 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       /* Next frame needs to back up for unwind info lookup. */
       d->use_prev_instr = 1;
       break;
-#if 0
+
     case UNW_AARCH64_FRAME_SIGRETURN:
       cfa = cfa + f->cfa_reg_offset; /* cfa now points to ucontext_t.  */
 
-      ACCESS_MEM_FAST(ret, c->validate, d, cfa + UC_MCONTEXT_GREGS_PC, pc);
+      ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_PC_OFF, pc);
       if (likely(ret >= 0))
-        ACCESS_MEM_FAST(ret, c->validate, d, cfa + UC_MCONTEXT_GREGS_X29, fp);
+        ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_X29_OFF, fp);
       if (likely(ret >= 0))
-        ACCESS_MEM_FAST(ret, c->validate, d, cfa + UC_MCONTEXT_GREGS_SP, sp);
+        ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_SP_OFF, sp);
 
       /* Resume stack at signal restoration point. The stack is not
          necessarily continuous here, especially with sigaltstack(). */
@@ -509,7 +508,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       /* Next frame should not back up. */
       d->use_prev_instr = 0;
       break;
-#endif
+
     default:
       /* We cannot trace through this frame, give up and tell the
 	  caller we had to stop.  Data collected so far may still be

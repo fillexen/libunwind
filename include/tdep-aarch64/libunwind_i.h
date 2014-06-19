@@ -105,6 +105,7 @@ struct cursor
     unw_word_t sigcontext_addr;
     unw_word_t sigcontext_sp;
     unw_word_t sigcontext_pc;
+    int validate;
   };
 
 #define DWARF_GET_LOC(l)        ((l).val)

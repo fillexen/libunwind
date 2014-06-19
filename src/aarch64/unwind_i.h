@@ -47,4 +47,16 @@ extern void aarch64_local_addr_space_init (void);
 extern int aarch64_local_resume (unw_addr_space_t as, unw_cursor_t *cursor,
 			     void *arg);
 
+/* By-pass calls to access_mem() when known to be safe. */
+#ifdef UNW_LOCAL_ONLY
+# undef ACCESS_MEM_FAST
+# define ACCESS_MEM_FAST(ret,validate,cur,addr,to)                     \
+  do {                                                                 \
+    if (unlikely(validate))                                            \
+      (ret) = dwarf_get ((cur), DWARF_MEM_LOC ((cur), (addr)), &(to)); \
+    else                                                               \
+      (ret) = 0, (to) = *(unw_word_t *)(addr);                         \
+  } while (0)
+#endif
+
 #endif /* unwind_i_h */
