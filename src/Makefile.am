@@ -198,7 +198,8 @@ libunwind_la_SOURCES_aarch64 = $(libunwind_la_SOURCES_aarch64_common)	    \
 	aarch64/Lget_save_loc.c aarch64/Lglobal.c aarch64/Linit.c	    \
 	aarch64/Linit_local.c aarch64/Linit_remote.c 			    \
 	aarch64/Lis_signal_frame.c aarch64/Lregs.c aarch64/Lresume.c 	    \
-	aarch64/Lstash_frame.c aarch64/Lstep.c aarch64/Ltrace.c
+	aarch64/Lstash_frame.c aarch64/Lstep.c aarch64/Ltrace.c		    \
+	aarch64/getcontext.S
 
 libunwind_aarch64_la_SOURCES_aarch64 = $(libunwind_la_SOURCES_aarch64_common) \
 	$(libunwind_la_SOURCES_generic)					      \
