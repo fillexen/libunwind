@@ -54,3 +54,28 @@ _Uarm_getcontext:
  /* We do not need executable stack.  */
  .section  .note.GNU-stack,"",%progbits
 #endif
+
+/*  int _Uarm_getcontext_trace (ucontext_t *ucp)
+
+  Saves limited machine context in UCP necessary for fast trace. If fast trace
+  fails, caller will have to get the full context.
+*/
+	.global _Uarm_getcontext_trace
+	.hidden _Uarm_getcontext_trace
+	.type _Uarm_getcontext_trace, @function
+_Uarm_getcontext_trace:
+	.cfi_startproc
+
+	/* Save only FP, IP, SP, LR, PC - exclude this call. */
+	strd fp, ip, [r0, #(LINUX_UC_MCONTEXT_OFF + LINUX_SC_FP_OFF)]
+	str lr, [r0, #(LINUX_UC_MCONTEXT_OFF + LINUX_SC_LR_OFF)]
+	ldr r1, [sp, #0]
+	str r1, [r0, #(LINUX_UC_MCONTEXT_OFF + LINUX_SC_SP_OFF)]
+	ldr r1, [sp, #8]
+	
+	.cfi_endproc
+	.size _Uarm_getcontext_trace, . - _Uarm_getcontext_trace
+
+      /* We do not need executable stack.  */
+      .section        .note.GNU-stack,"",@progbits
+
