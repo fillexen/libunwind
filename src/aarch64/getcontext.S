@@ -38,7 +38,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 _Uaarch64_getcontext_trace:
 	.cfi_startproc
 
-	/* Save only FP, SP, PC - exclude this call. */
+	/* Save only FP, LR, SP, PC - exclude this call. */
 	str x29, [x0, #(LINUX_UC_MCONTEXT_OFF + LINUX_SC_X29_OFF)]
 	mov x9, sp
 	str x9, [x0, #(LINUX_UC_MCONTEXT_OFF + LINUX_SC_SP_OFF)]

@@ -401,7 +401,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   struct cursor *c = (struct cursor *) cursor;
   struct dwarf_cursor *d = &c->dwarf;
   unw_trace_cache_t *cache;
-  unw_word_t fp, sp, pc, cfa;
+  unw_word_t fp, sp, pc, cfa, lr;
   int maxdepth = 0;
   int depth = 0;
   int ret;
@@ -421,6 +421,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   sp = cfa = d->cfa;
   ACCESS_MEM_FAST(ret, 0, d, DWARF_GET_LOC(d->loc[UNW_AARCH64_X29]), fp);
   assert(ret == 0);
+  lr = 0;
 
   /* Get frame cache. */
   if (unlikely(! (cache = trace_cache_get())))
@@ -482,6 +483,12 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       cfa = (f->cfa_reg_sp ? sp : fp) + f->cfa_reg_offset;
       if (likely(f->lr_cfa_offset != -1))
 	ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->lr_cfa_offset, pc);
+      else if (lr != 0)
+      {
+        /* Use the saved link register as the new pc. */
+        pc = lr;
+        lr = 0;
+      }
       if (likely(ret >= 0) && likely(f->fp_cfa_offset != -1))
 	ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->fp_cfa_offset, fp);
 
@@ -500,6 +507,10 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
         ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_X29_OFF, fp);
       if (likely(ret >= 0))
         ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_SP_OFF, sp);
+      /* Save the link register here in case we end up in a function that 
+         doesn't save the link register in the prologue, e.g. kill. */
+      if (likely(ret >= 0))
+        ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_X30_OFF, lr);
 
       /* Resume stack at signal restoration point. The stack is not
          necessarily continuous here, especially with sigaltstack(). */
