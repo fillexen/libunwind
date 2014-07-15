@@ -38,7 +38,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
 typedef enum
   {
-    UNW_ARM_FRAME_STANDARD = -2,     /* regular fp, sp +/- offset */
+    UNW_ARM_FRAME_STANDARD = -2,     /* regular r7, sp +/- offset */
     UNW_ARM_FRAME_SIGRETURN = -1,    /* special sigreturn frame */
     UNW_ARM_FRAME_OTHER = 0,         /* not cacheable (special or unrecognised) */
     UNW_ARM_FRAME_GUESSED = 1        /* guessed it was regular, but not known */
@@ -47,14 +47,14 @@ unw_tdep_frame_type_t;
 
 typedef struct
   {
-    uint64_t virtual_address;
-    int64_t frame_type     : 2;  /* unw_tdep_frame_type_t classification */
-    int64_t last_frame     : 1;  /* non-zero if last frame in chain */
-    int64_t cfa_reg_sp    : 1;  /* cfa dwarf base register is sp vs. fp */
-    int64_t cfa_reg_offset : 30; /* cfa is at this offset from base register value */
-    int64_t fp_cfa_offset : 30; /* fp saved at this offset from cfa (-1 = not saved) */
-    int64_t lr_cfa_offset : 30; /* lr saved at this offset from cfa (-1 = not saved) */
-    int64_t sp_cfa_offset : 30; /* sp saved at this offset from cfa (-1 = not saved) */
+    uint32_t virtual_address;
+    int32_t frame_type     : 2;  /* unw_tdep_frame_type_t classification */
+    int32_t last_frame     : 1;  /* non-zero if last frame in chain */
+    int32_t cfa_reg_sp     : 1;  /* cfa dwarf base register is sp vs. r7 */
+    int32_t cfa_reg_offset : 30; /* cfa is at this offset from base register value */
+    int32_t r7_cfa_offset  : 30; /* r7 saved at this offset from cfa (-1 = not saved) */
+    int32_t lr_cfa_offset  : 30; /* lr saved at this offset from cfa (-1 = not saved) */
+    int32_t sp_cfa_offset  : 30; /* sp saved at this offset from cfa (-1 = not saved) */
   }
 unw_tdep_frame_t;
 
@@ -77,9 +77,9 @@ struct unw_addr_space
 struct cursor
   {
     struct dwarf_cursor dwarf;		/* must be first */
-    
+
     unw_tdep_frame_t frame_info;	/* quick tracing assist info */
-    
+
     enum
       {
         ARM_SCF_NONE,                   /* no signal frame */
@@ -246,7 +246,7 @@ dwarf_put (struct dwarf_cursor *c, dwarf_loc_t loc, unw_word_t val)
 
 #endif /* !UNW_LOCAL_ONLY */
 
-#define tdep_getcontext_trace           unw_getcontext
+#define tdep_getcontext_trace           UNW_ARCH_OBJ(getcontext_trace)
 #define tdep_init_done			UNW_OBJ(init_done)
 #define tdep_init			UNW_OBJ(init)
 #define arm_find_proc_info		UNW_OBJ(find_proc_info)
@@ -262,8 +262,8 @@ dwarf_put (struct dwarf_cursor *c, dwarf_loc_t loc, unw_word_t val)
 #define tdep_fetch_frame(c,ip,n)	do {} while(0)
 #define tdep_cache_frame(c,rs)		do {} while(0)
 #define tdep_reuse_frame(c,rs)		do {} while(0)
-#define tdep_stash_frame(c,rs)		UNW_OBJ(tdep_stash_frame)
-#define tdep_trace(cur,addr,n)		UNW_OBJ(tdep_trace)
+#define tdep_stash_frame		UNW_OBJ(tdep_stash_frame)
+#define tdep_trace			UNW_OBJ(tdep_trace)
 
 #ifdef UNW_LOCAL_ONLY
 # define tdep_find_proc_info(c,ip,n)				\

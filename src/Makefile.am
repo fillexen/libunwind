@@ -220,7 +220,7 @@ libunwind_la_SOURCES_arm = $(libunwind_la_SOURCES_arm_common)		    \
 	arm/Lcreate_addr_space.c arm/Lget_proc_info.c arm/Lget_save_loc.c   \
 	arm/Lglobal.c arm/Linit.c arm/Linit_local.c arm/Linit_remote.c	    \
 	arm/Lis_signal_frame.c arm/Lregs.c arm/Lresume.c arm/Lstep.c	    \
-	arm/Lex_tables.c arm/Lstash_frame.c arm/Ltrace.c arm/getcontext.S
+	arm/Lex_tables.c arm/Lstash_frame.c arm/Ltrace.c
 
 libunwind_arm_la_SOURCES_arm = $(libunwind_la_SOURCES_arm_common)	    \
 	$(libunwind_la_SOURCES_generic)					    \

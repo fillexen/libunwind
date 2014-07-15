@@ -31,35 +31,35 @@ tdep_stash_frame (struct dwarf_cursor *d, struct dwarf_reg_state *rs)
   struct cursor *c = (struct cursor *) dwarf_to_cursor (d);
   unw_tdep_frame_t *f = &c->frame_info;
 
-  Debug (4, "ip=0x%lx cfa=0x%lx type %d cfa [where=%d val=%ld] cfaoff=%ld"
-	 " ra=0x%lx fp [where=%d val=%ld @0x%lx] lr [where=%d val=%ld @0x%lx] "
-	 "sp [where=%d val=%ld @0x%lx]\n",
+  Debug (4, "ip=0x%x cfa=0x%x type %d cfa [where=%d val=%d] cfaoff=%d"
+	 " ra=0x%x r7 [where=%d val=%d @0x%x] lr [where=%d val=%ld @0x%x] "
+	 "sp [where=%d val=%d @0x%x]\n",
 	 d->ip, d->cfa, f->frame_type,
 	 rs->reg[DWARF_CFA_REG_COLUMN].where,
 	 rs->reg[DWARF_CFA_REG_COLUMN].val,
 	 rs->reg[DWARF_CFA_OFF_COLUMN].val,
 	 DWARF_GET_LOC(d->loc[d->ret_addr_column]),
-	 rs->reg[FP].where, rs->reg[FP].val, DWARF_GET_LOC(d->loc[FP]),
+	 rs->reg[R7].where, rs->reg[R7].val, DWARF_GET_LOC(d->loc[R7]),
 	 rs->reg[LR].where, rs->reg[LR].val, DWARF_GET_LOC(d->loc[LR]),
 	 rs->reg[SP].where, rs->reg[SP].val, DWARF_GET_LOC(d->loc[SP]));
 
   /* A standard frame is defined as:
-      - CFA is register-relative offset off FP or SP;
+      - CFA is register-relative offset off R7 or SP;
       - Return address is saved in LR;
-      - FP is unsaved or saved at CFA+offset, offset != -1;
+      - R7 is unsaved or saved at CFA+offset, offset != -1;
       - LR is unsaved or saved at CFA+offset, offset != -1;
       - SP is unsaved or saved at CFA+offset, offset != -1.  */
   if (f->frame_type == UNW_ARM_FRAME_OTHER
       && (rs->reg[DWARF_CFA_REG_COLUMN].where == DWARF_WHERE_REG)
-      && (rs->reg[DWARF_CFA_REG_COLUMN].val == FP
+      && (rs->reg[DWARF_CFA_REG_COLUMN].val == R7
 	  || rs->reg[DWARF_CFA_REG_COLUMN].val == SP)
       && labs(rs->reg[DWARF_CFA_OFF_COLUMN].val) < (1 << 29)
       && d->ret_addr_column == LR
-      && (rs->reg[FP].where == DWARF_WHERE_UNDEF
-	  || rs->reg[FP].where == DWARF_WHERE_SAME
-	  || (rs->reg[FP].where == DWARF_WHERE_CFAREL
-	      && labs(rs->reg[FP].val) < (1 << 29)
-	      && rs->reg[FP].val+1 != 0))
+      && (rs->reg[R7].where == DWARF_WHERE_UNDEF
+	  || rs->reg[R7].where == DWARF_WHERE_SAME
+	  || (rs->reg[R7].where == DWARF_WHERE_CFAREL
+	      && labs(rs->reg[R7].val) < (1 << 29)
+	      && rs->reg[R7].val+1 != 0))
       && (rs->reg[LR].where == DWARF_WHERE_UNDEF
 	  || rs->reg[LR].where == DWARF_WHERE_SAME
 	  || (rs->reg[LR].where == DWARF_WHERE_CFAREL
@@ -75,34 +75,14 @@ tdep_stash_frame (struct dwarf_cursor *d, struct dwarf_reg_state *rs)
     f->frame_type = UNW_ARM_FRAME_STANDARD;
     f->cfa_reg_sp = (rs->reg[DWARF_CFA_REG_COLUMN].val == SP);
     f->cfa_reg_offset = rs->reg[DWARF_CFA_OFF_COLUMN].val;
-    if (rs->reg[FP].where == DWARF_WHERE_CFAREL)
-      f->fp_cfa_offset = rs->reg[FP].val;
+    if (rs->reg[R7].where == DWARF_WHERE_CFAREL)
+      f->r7_cfa_offset = rs->reg[R7].val;
     if (rs->reg[LR].where == DWARF_WHERE_CFAREL)
       f->lr_cfa_offset = rs->reg[LR].val;
     if (rs->reg[SP].where == DWARF_WHERE_CFAREL)
       f->sp_cfa_offset = rs->reg[SP].val;
     Debug (4, " standard frame\n");
   }
-#if 0
-  /* Signal frame was detected via augmentation in tdep_fetch_frame()  */
-  else if (f->frame_type == UNW_ARM_FRAME_SIGRETURN)
-  {
-    /* Later we are going to fish out {RBP,RSP,RIP} from sigcontext via
-       their ucontext_t offsets.  Confirm DWARF info agrees with the
-       offsets we expect.  */
-
-#ifndef NDEBUG
-    const unw_word_t uc = c->sigcontext_addr;
-
-    assert (DWARF_GET_LOC(d->loc[RIP]) - uc == UC_MCONTEXT_GREGS_RIP);
-    assert (DWARF_GET_LOC(d->loc[RBP]) - uc == UC_MCONTEXT_GREGS_RBP);
-    assert (DWARF_GET_LOC(d->loc[RSP]) - uc == UC_MCONTEXT_GREGS_RSP);
-#endif
-
-    Debug (4, " sigreturn frame\n");
-  }
-#endif
-  /* PLT and guessed RBP-walked frames are handled in unw_step(). */
   else
     Debug (4, " unusual frame\n");
 }

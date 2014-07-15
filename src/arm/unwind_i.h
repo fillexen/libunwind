@@ -32,8 +32,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 #include "libunwind_i.h"
 
 /* DWARF column numbers for ARM: */
-#define FP	11
-#define IP	12
+#define R7	7
 #define SP	13
 #define LR	14
 #define PC	15

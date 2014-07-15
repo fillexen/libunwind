@@ -146,11 +146,11 @@ trace_cache_expand (unw_trace_cache_t *cache)
 
   if (unlikely(! new_frames))
   {
-    Debug(5, "failed to expand cache to 2^%lu buckets\n", new_log_size);
+    Debug(5, "failed to expand cache to 2^%u buckets\n", new_log_size);
     return -UNW_ENOMEM;
   }
 
-  Debug(5, "expanded cache from 2^%lu to 2^%lu buckets\n", cache->log_size, new_log_size);
+  Debug(5, "expanded cache from 2^%lu to 2^%u buckets\n", cache->log_size, new_log_size);
   munmap(cache->frames, old_size * sizeof(unw_tdep_frame_t));
   cache->frames = new_frames;
   cache->log_size = new_log_size;
@@ -216,8 +216,8 @@ trace_init_addr (unw_tdep_frame_t *f,
 		 unw_cursor_t *cursor,
 		 unw_word_t cfa,
 		 unw_word_t pc,
-		 unw_word_t fp,
-		 unw_word_t sp)
+		 unw_word_t sp,
+		 unw_word_t r7)
 {
   struct cursor *c = (struct cursor *) cursor;
   struct dwarf_cursor *d = &c->dwarf;
@@ -229,7 +229,7 @@ trace_init_addr (unw_tdep_frame_t *f,
   f->last_frame = 0;
   f->cfa_reg_sp = -1;
   f->cfa_reg_offset = 0;
-  f->fp_cfa_offset = -1;
+  f->r7_cfa_offset = -1;
   f->lr_cfa_offset = -1;
   f->sp_cfa_offset = -1;
 
@@ -239,13 +239,13 @@ trace_init_addr (unw_tdep_frame_t *f,
      their desired values. Then perform the step. */
   d->ip = pc + d->use_prev_instr;
   d->cfa = cfa;
-  d->loc[UNW_ARM_R11] = DWARF_REG_LOC (d, UNW_ARM_R11);
+  d->loc[UNW_ARM_R7] = DWARF_REG_LOC (d, UNW_ARM_R7);
   d->loc[UNW_ARM_R13] = DWARF_REG_LOC (d, UNW_ARM_R13);
   d->loc[UNW_ARM_R15] = DWARF_REG_LOC (d, UNW_ARM_R15);
   c->frame_info = *f;
 
   if (likely(dwarf_put (d, d->loc[UNW_ARM_R15], pc) >= 0)
-      && likely(dwarf_put (d, d->loc[UNW_ARM_R11], fp) >= 0)
+      && likely(dwarf_put (d, d->loc[UNW_ARM_R7], r7) >= 0)
       && likely(dwarf_put (d, d->loc[UNW_ARM_R13], sp) >= 0)
       && likely((ret = unw_step (cursor)) >= 0))
     *f = c->frame_info;
@@ -259,10 +259,10 @@ trace_init_addr (unw_tdep_frame_t *f,
   if (ret == 0)
     f->last_frame = -1;
 
-  Debug (3, "frame va %lx type %d last %d cfa %s+%d fp @ cfa%+d lr @ cfa%+d sp @ cfa%+d\n",
+  Debug (3, "frame va %x type %d last %d cfa %s+%d r7 @ cfa%+d lr @ cfa%+d sp @ cfa%+d\n",
 	 f->virtual_address, f->frame_type, f->last_frame,
-	 f->cfa_reg_sp ? "sp" : "fp", f->cfa_reg_offset,
-	 f->fp_cfa_offset, f->lr_cfa_offset, f->sp_cfa_offset);
+	 f->cfa_reg_sp ? "sp" : "r7", f->cfa_reg_offset,
+	 f->r7_cfa_offset, f->lr_cfa_offset, f->sp_cfa_offset);
 
   return f;
 }
@@ -276,17 +276,17 @@ trace_lookup (unw_cursor_t *cursor,
 	      unw_trace_cache_t *cache,
 	      unw_word_t cfa,
 	      unw_word_t pc,
-	      unw_word_t fp,
-	      unw_word_t sp)
+	      unw_word_t sp,
+	      unw_word_t r7)
 {
   /* First look up for previously cached information using cache as
      linear probing hash table with probe step of 1.  Majority of
      lookups should be completed within few steps, but it is very
      important the hash table does not fill up, or performance falls
      off the cliff. */
-  uint64_t i, addr;
-  uint64_t cache_size = 1u << cache->log_size;
-  uint64_t slot = ((pc * 0x9e3779b97f4a7c16) >> 43) & (cache_size-1);
+  uint32_t i, addr;
+  uint32_t cache_size = 1u << cache->log_size;
+  uint32_t slot = ((pc * 0x9e3779b9) >> 11) & (cache_size-1);
   unw_tdep_frame_t *frame;
 
   for (i = 0; i < 16; ++i)
@@ -314,14 +314,14 @@ trace_lookup (unw_cursor_t *cursor,
      full, force the hash to expand. Fill the selected slot, whether
      it's free or collides. Note that hash expansion drops previous
      contents; further lookups will refill the hash. */
-  Debug (4, "updating slot %lu after %ld steps, replacing 0x%lx\n", slot, i, addr);
+  Debug (4, "updating slot %lu after %d steps, replacing 0x%x\n", slot, i, addr);
   if (unlikely(addr || cache->used >= cache_size / 2))
   {
     if (unlikely(trace_cache_expand (cache) < 0))
       return NULL;
 
     cache_size = 1u << cache->log_size;
-    slot = ((pc * 0x9e3779b97f4a7c16) >> 43) & (cache_size-1);
+    slot = ((pc * 0x9e3779b9) >> 11) & (cache_size-1);
     frame = &cache->frames[slot];
     addr = frame->virtual_address;
   }
@@ -329,7 +329,7 @@ trace_lookup (unw_cursor_t *cursor,
   if (! addr)
     ++cache->used;
 
-  return trace_init_addr (frame, cursor, cfa, pc, fp, sp);
+  return trace_init_addr (frame, cursor, cfa, pc, sp, r7);
 }
 
 /* Fast stack backtrace for x86-64.
@@ -401,7 +401,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   struct cursor *c = (struct cursor *) cursor;
   struct dwarf_cursor *d = &c->dwarf;
   unw_trace_cache_t *cache;
-  unw_word_t fp, sp, pc, cfa;
+  unw_word_t sp, pc, cfa, lr, r7;
   int maxdepth = 0;
   int depth = 0;
   int ret;
@@ -410,7 +410,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   if (unlikely(! cursor || ! buffer || ! size || (maxdepth = *size) <= 0))
     return -UNW_EINVAL;
 
-  Debug (1, "begin ip 0x%lx cfa 0x%lx\n", d->ip, d->cfa);
+  Debug (1, "begin ip 0x%x cfa 0x%x\n", d->ip, d->cfa);
 
   /* Tell core dwarf routines to call back to us. */
   d->stash_frames = 1;
@@ -419,8 +419,9 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
      because we know they come from the initial machine context. */
   pc = d->ip;
   sp = cfa = d->cfa;
-  ACCESS_MEM_FAST(ret, 0, d, DWARF_GET_LOC(d->loc[UNW_ARM_R11]), fp);
+  ACCESS_MEM_FAST(ret, 0, d, DWARF_GET_LOC(d->loc[UNW_ARM_R7]), r7);
   assert(ret == 0);
+  lr = 0;
 
   /* Get frame cache. */
   if (unlikely(! (cache = trace_cache_get())))
@@ -438,15 +439,15 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   while (depth < maxdepth)
   {
     pc -= d->use_prev_instr;
-    Debug (2, "depth %d cfa 0x%lx pc 0x%lx sp 0x%lx fp 0x%lx\n",
-	   depth, cfa, pc, sp, fp);
+    Debug (2, "depth %d cfa 0x%x pc 0x%x sp 0x%x r7 0x%x\n",
+	   depth, cfa, pc, sp, r7);
 
     /* See if we have this address cached.  If not, evaluate enough of
        the dwarf unwind information to fill the cache line data, or to
        decide this frame cannot be handled in fast trace mode.  We
        cache negative results too to prevent unnecessary dwarf parsing
        for common failures. */
-    unw_tdep_frame_t *f = trace_lookup (cursor, cache, cfa, pc, fp, sp);
+    unw_tdep_frame_t *f = trace_lookup (cursor, cache, cfa, pc, sp, r7);
 
     /* If we don't have information for this frame, give up. */
     if (unlikely(! f))
@@ -455,10 +456,10 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       break;
     }
 
-    Debug (3, "frame va %lx type %d last %d cfa %s+%d fp @ cfa%+d lr @ cfa%+d sp @ cfa%+d\n",
+    Debug (3, "frame va %x type %d last %d cfa %s+%d r7 @ cfa%+d lr @ cfa%+d sp @ cfa%+d\n",
            f->virtual_address, f->frame_type, f->last_frame,
-           f->cfa_reg_sp ? "sp" : "fp", f->cfa_reg_offset,
-           f->fp_cfa_offset, f->lr_cfa_offset, f->sp_cfa_offset);
+           f->cfa_reg_sp ? "sp" : "r7", f->cfa_reg_offset,
+           f->r7_cfa_offset, f->lr_cfa_offset, f->sp_cfa_offset);
 
     assert (f->virtual_address == pc);
 
@@ -479,11 +480,17 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
 
     case UNW_ARM_FRAME_STANDARD:
       /* Advance standard traceable frame. */
-      cfa = (f->cfa_reg_sp ? sp : fp) + f->cfa_reg_offset;
+      cfa = (f->cfa_reg_sp ? sp : r7) + f->cfa_reg_offset;
       if (likely(f->lr_cfa_offset != -1))
 	ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->lr_cfa_offset, pc);
-      if (likely(ret >= 0) && likely(f->fp_cfa_offset != -1))
-	ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->fp_cfa_offset, fp);
+      else
+      {
+        /* Use the saved link register as the new pc. */
+        pc = lr;
+        lr = 0;
+      }
+      if (likely(ret >= 0) && likely(f->r7_cfa_offset != -1))
+	ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->r7_cfa_offset, r7);
 
       /* Don't bother reading SP from DWARF, CFA becomes new SP. */
       sp = cfa;
@@ -497,9 +504,13 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
 
       ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_PC_OFF, pc);
       if (likely(ret >= 0))
-        ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_R11_OFF, fp);
+        ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_R7_OFF, r7);
       if (likely(ret >= 0))
-        ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_R13_OFF, sp);
+        ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_SP_OFF, sp);
+      /* Save the link register here in case we end up in a function that 
+         doesn't save the link register in the prologue, e.g. kill. */
+      if (likely(ret >= 0))
+        ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_LR_OFF, lr);
 
       /* Resume stack at signal restoration point. The stack is not
          necessarily continuous here, especially with sigaltstack(). */
@@ -517,8 +528,8 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       break;
     }
 
-    Debug (4, "new cfa 0x%lx pc 0x%lx sp 0x%lx fp 0x%lx\n",
-	   cfa, pc, sp, fp);
+    Debug (4, "new cfa 0x%x pc 0x%x sp 0x%x r7 0x%x\n",
+	   cfa, pc, sp, r7);
 
     /* If we failed or ended up somewhere bogus, stop. */
     if (unlikely(ret < 0 || pc < 0x4000))
