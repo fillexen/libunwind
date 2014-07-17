@@ -1,5 +1,7 @@
 /* libunwind - a platform-independent unwind library
    Copyright (C) 2010, 2011 by FERMI NATIONAL ACCELERATOR LABORATORY
+   Copyright (C) 2014 CERN and Aalto University
+	Contributed by Filip Nyback
 
 This file is part of libunwind.
 
@@ -23,7 +25,6 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
 #include "unwind_i.h"
-//#include "ucontext_i.h"
 #include "offsets.h"
 #include <signal.h>
 #include <limits.h>
@@ -204,20 +205,20 @@ trace_cache_get (void)
 }
 
 /* Initialise frame properties for address cache slot F at address
-   RIP using current CFA, RBP and RSP values.  Modifies CURSOR to
+   PC using current CFA, R7 and SP values.  Modifies CURSOR to
    that location, performs one unw_step(), and fills F with what
    was discovered about the location.  Returns F.
 
    FIXME: This probably should tell DWARF handling to never evaluate
-   or use registers other than RBP, RSP and RIP in case there is
+   or use registers other than R7, SP and PC in case there is
    highly unusual unwind info which uses these creatively. */
 static unw_tdep_frame_t *
 trace_init_addr (unw_tdep_frame_t *f,
 		 unw_cursor_t *cursor,
 		 unw_word_t cfa,
 		 unw_word_t pc,
-		 unw_word_t sp,
-		 unw_word_t r7)
+		 unw_word_t r7,
+		 unw_word_t sp)
 {
   struct cursor *c = (struct cursor *) cursor;
   struct dwarf_cursor *d = &c->dwarf;
@@ -234,8 +235,8 @@ trace_init_addr (unw_tdep_frame_t *f,
   f->sp_cfa_offset = -1;
 
   /* Reinitialise cursor to this instruction - but undo next/prev RIP
-     adjustment because unw_step will redo it - and force RIP, RBP
-     RSP into register locations (=~ ucontext we keep), then set
+     adjustment because unw_step will redo it - and force PC, R7 and
+     SP into register locations (=~ ucontext we keep), then set
      their desired values. Then perform the step. */
   d->ip = pc + d->use_prev_instr;
   d->cfa = cfa;
@@ -244,9 +245,9 @@ trace_init_addr (unw_tdep_frame_t *f,
   d->loc[UNW_ARM_R15] = DWARF_REG_LOC (d, UNW_ARM_R15);
   c->frame_info = *f;
 
-  if (likely(dwarf_put (d, d->loc[UNW_ARM_R15], pc) >= 0)
-      && likely(dwarf_put (d, d->loc[UNW_ARM_R7], r7) >= 0)
+  if (likely(dwarf_put (d, d->loc[UNW_ARM_R7], r7) >= 0)
       && likely(dwarf_put (d, d->loc[UNW_ARM_R13], sp) >= 0)
+      && likely(dwarf_put (d, d->loc[UNW_ARM_R15], pc) >= 0)
       && likely((ret = unw_step (cursor)) >= 0))
     *f = c->frame_info;
 
@@ -267,8 +268,8 @@ trace_init_addr (unw_tdep_frame_t *f,
   return f;
 }
 
-/* Look up and if necessary fill in frame attributes for address RIP
-  in CACHE using current CFA, RBP and RSP values.  Uses CURSOR to
+/* Look up and if necessary fill in frame attributes for address PC
+   in CACHE using current CFA, R7 and SP values.  Uses CURSOR to
    perform any unwind steps necessary to fill the cache.  Returns the
    frame cache slot which describes RIP. */
 static unw_tdep_frame_t *
@@ -276,8 +277,8 @@ trace_lookup (unw_cursor_t *cursor,
 	      unw_trace_cache_t *cache,
 	      unw_word_t cfa,
 	      unw_word_t pc,
-	      unw_word_t sp,
-	      unw_word_t r7)
+	      unw_word_t r7,
+	      unw_word_t sp)
 {
   /* First look up for previously cached information using cache as
      linear probing hash table with probe step of 1.  Majority of
@@ -329,10 +330,10 @@ trace_lookup (unw_cursor_t *cursor,
   if (! addr)
     ++cache->used;
 
-  return trace_init_addr (frame, cursor, cfa, pc, sp, r7);
+  return trace_init_addr (frame, cursor, cfa, pc, r7, sp);
 }
 
-/* Fast stack backtrace for x86-64.
+/* Fast stack backtrace for ARM.
 
    This is used by backtrace() implementation to accelerate frequent
    queries for current stack, without any desire to unwind. It fills
@@ -350,8 +351,8 @@ trace_lookup (unw_cursor_t *cursor,
    stack to get the call tree as fast as possible but without any
    other details, for example profilers sampling the stack thousands
    to millions of times per second.  The routine handles the most
-   common x86-64 ABI stack layouts: CFA is RBP or RSP plus/minus
-   constant offset, return address is at CFA-8, and RBP and RSP are
+   common ARM ABI stack layouts: CFA is R7 or SP plus/minus
+   constant offset, return address is in LR, and R7, LR and SP are
    either unchanged or saved on stack at constant offset from the CFA;
    the signal return frame; and frames without unwind info provided
    they are at the outermost (final) frame or can conservatively be
@@ -401,7 +402,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
   struct cursor *c = (struct cursor *) cursor;
   struct dwarf_cursor *d = &c->dwarf;
   unw_trace_cache_t *cache;
-  unw_word_t sp, pc, cfa, lr, r7;
+  unw_word_t sp, pc, cfa, r7, lr;
   int maxdepth = 0;
   int depth = 0;
   int ret;
@@ -432,8 +433,8 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
     return -UNW_ENOMEM;
   }
 
-  /* Trace the stack upwards, starting from current RIP.  Adjust
-     the RIP address for previous/next instruction as the main
+  /* Trace the stack upwards, starting from current PC.  Adjust
+     the PC address for previous/next instruction as the main
      unwinding logic would also do.  We undo this before calling
      back into unw_step(). */
   while (depth < maxdepth)
@@ -447,7 +448,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
        decide this frame cannot be handled in fast trace mode.  We
        cache negative results too to prevent unnecessary dwarf parsing
        for common failures. */
-    unw_tdep_frame_t *f = trace_lookup (cursor, cache, cfa, pc, sp, r7);
+    unw_tdep_frame_t *f = trace_lookup (cursor, cache, cfa, pc, r7, sp);
 
     /* If we don't have information for this frame, give up. */
     if (unlikely(! f))
@@ -483,7 +484,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
       cfa = (f->cfa_reg_sp ? sp : r7) + f->cfa_reg_offset;
       if (likely(f->lr_cfa_offset != -1))
 	ACCESS_MEM_FAST(ret, c->validate, d, cfa + f->lr_cfa_offset, pc);
-      else
+      else if (lr != 0)
       {
         /* Use the saved link register as the new pc. */
         pc = lr;

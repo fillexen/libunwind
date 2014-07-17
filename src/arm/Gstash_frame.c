@@ -1,5 +1,7 @@
 /* libunwind - a platform-independent unwind library
    Copyright (C) 2010, 2011 by FERMI NATIONAL ACCELERATOR LABORATORY
+   Copyright (C) 2014 CERN and Aalto University
+	Contributed by Filip Nyback
 
 This file is part of libunwind.
 
@@ -23,7 +25,6 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
 #include "unwind_i.h"
-//#include "ucontext_i.h"
 
 HIDDEN void
 tdep_stash_frame (struct dwarf_cursor *d, struct dwarf_reg_state *rs)
