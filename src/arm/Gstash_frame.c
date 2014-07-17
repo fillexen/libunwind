@@ -33,7 +33,7 @@ tdep_stash_frame (struct dwarf_cursor *d, struct dwarf_reg_state *rs)
   unw_tdep_frame_t *f = &c->frame_info;
 
   Debug (4, "ip=0x%x cfa=0x%x type %d cfa [where=%d val=%d] cfaoff=%d"
-	 " ra=0x%x r7 [where=%d val=%d @0x%x] lr [where=%d val=%ld @0x%x] "
+	 " ra=0x%x r7 [where=%d val=%d @0x%x] lr [where=%d val=%d @0x%x] "
 	 "sp [where=%d val=%d @0x%x]\n",
 	 d->ip, d->cfa, f->frame_type,
 	 rs->reg[DWARF_CFA_REG_COLUMN].where,

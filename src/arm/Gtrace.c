@@ -151,7 +151,8 @@ trace_cache_expand (unw_trace_cache_t *cache)
     return -UNW_ENOMEM;
   }
 
-  Debug(5, "expanded cache from 2^%lu to 2^%u buckets\n", cache->log_size, new_log_size);
+  Debug(5, "expanded cache from 2^%u to 2^%u buckets\n", cache->log_size,
+        new_log_size);
   munmap(cache->frames, old_size * sizeof(unw_tdep_frame_t));
   cache->frames = new_frames;
   cache->log_size = new_log_size;
@@ -298,7 +299,7 @@ trace_lookup (unw_cursor_t *cursor,
     /* Return if we found the address. */
     if (likely(addr == pc))
     {
-      Debug (4, "found address after %ld steps\n", i);
+      Debug (4, "found address after %d steps\n", i);
       return frame;
     }
 
@@ -315,7 +316,7 @@ trace_lookup (unw_cursor_t *cursor,
      full, force the hash to expand. Fill the selected slot, whether
      it's free or collides. Note that hash expansion drops previous
      contents; further lookups will refill the hash. */
-  Debug (4, "updating slot %lu after %d steps, replacing 0x%x\n", slot, i, addr);
+  Debug (4, "updating slot %u after %d steps, replacing 0x%x\n", slot, i, addr);
   if (unlikely(addr || cache->used >= cache_size / 2))
   {
     if (unlikely(trace_cache_expand (cache) < 0))
