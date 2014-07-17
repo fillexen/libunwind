@@ -1,5 +1,7 @@
 /* libunwind - a platform-independent unwind library
    Copyright (C) 2010, 2011 by FERMI NATIONAL ACCELERATOR LABORATORY
+   Copyright (C) 2014 CERN and Aalto University
+	Contributed by Filip Nyback
 
 This file is part of libunwind.
 
@@ -23,7 +25,6 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
 #include "unwind_i.h"
-//#include "ucontext_i.h"
 
 HIDDEN void
 tdep_stash_frame (struct dwarf_cursor *d, struct dwarf_reg_state *rs)
@@ -83,26 +84,6 @@ tdep_stash_frame (struct dwarf_cursor *d, struct dwarf_reg_state *rs)
       f->sp_cfa_offset = rs->reg[SP].val;
     Debug (4, " standard frame\n");
   }
-#if 0
-  /* Signal frame was detected via augmentation in tdep_fetch_frame()  */
-  else if (f->frame_type == UNW_AARCH64_FRAME_SIGRETURN)
-  {
-    /* Later we are going to fish out {RBP,RSP,RIP} from sigcontext via
-       their ucontext_t offsets.  Confirm DWARF info agrees with the
-       offsets we expect.  */
-
-#ifndef NDEBUG
-    const unw_word_t uc = c->sigcontext_addr;
-
-    assert (DWARF_GET_LOC(d->loc[RIP]) - uc == UC_MCONTEXT_GREGS_RIP);
-    assert (DWARF_GET_LOC(d->loc[RBP]) - uc == UC_MCONTEXT_GREGS_RBP);
-    assert (DWARF_GET_LOC(d->loc[RSP]) - uc == UC_MCONTEXT_GREGS_RSP);
-#endif
-
-    Debug (4, " sigreturn frame\n");
-  }
-#endif
-  /* PLT and guessed RBP-walked frames are handled in unw_step(). */
   else
     Debug (4, " unusual frame\n");
 }

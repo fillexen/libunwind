@@ -1,5 +1,7 @@
 /* libunwind - a platform-independent unwind library
    Copyright (C) 2010, 2011 by FERMI NATIONAL ACCELERATOR LABORATORY
+   Copyright (C) 2014 CERN and Aalto University
+	Contributed by Filip Nyback
 
 This file is part of libunwind.
 
@@ -23,7 +25,6 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
 #include "unwind_i.h"
-//#include "ucontext_i.h"
 #include "offsets.h"
 #include <signal.h>
 #include <limits.h>
@@ -204,12 +205,12 @@ trace_cache_get (void)
 }
 
 /* Initialise frame properties for address cache slot F at address
-   RIP using current CFA, RBP and RSP values.  Modifies CURSOR to
+   PC using current CFA, FP and SP values.  Modifies CURSOR to
    that location, performs one unw_step(), and fills F with what
    was discovered about the location.  Returns F.
 
    FIXME: This probably should tell DWARF handling to never evaluate
-   or use registers other than RBP, RSP and RIP in case there is
+   or use registers other than FP, SP and PC in case there is
    highly unusual unwind info which uses these creatively. */
 static unw_tdep_frame_t *
 trace_init_addr (unw_tdep_frame_t *f,
@@ -233,20 +234,20 @@ trace_init_addr (unw_tdep_frame_t *f,
   f->lr_cfa_offset = -1;
   f->sp_cfa_offset = -1;
 
-  /* Reinitialise cursor to this instruction - but undo next/prev RIP
-     adjustment because unw_step will redo it - and force RIP, RBP
-     RSP into register locations (=~ ucontext we keep), then set
+  /* Reinitialise cursor to this instruction - but undo next/prev PC
+     adjustment because unw_step will redo it - and force PC, FP and
+     SP into register locations (=~ ucontext we keep), then set
      their desired values. Then perform the step. */
   d->ip = pc + d->use_prev_instr;
   d->cfa = cfa;
-  d->loc[UNW_AARCH64_PC] = DWARF_REG_LOC (d, UNW_AARCH64_PC);
   d->loc[UNW_AARCH64_X29] = DWARF_REG_LOC (d, UNW_AARCH64_X29);
   d->loc[UNW_AARCH64_SP] = DWARF_REG_LOC (d, UNW_AARCH64_SP);
+  d->loc[UNW_AARCH64_PC] = DWARF_REG_LOC (d, UNW_AARCH64_PC);
   c->frame_info = *f;
 
-  if (likely(dwarf_put (d, d->loc[UNW_AARCH64_PC], pc) >= 0)
-      && likely(dwarf_put (d, d->loc[UNW_AARCH64_X29], fp) >= 0)
+  if (likely(dwarf_put (d, d->loc[UNW_AARCH64_X29], fp) >= 0)
       && likely(dwarf_put (d, d->loc[UNW_AARCH64_SP], sp) >= 0)
+      && likely(dwarf_put (d, d->loc[UNW_AARCH64_PC], pc) >= 0)
       && likely((ret = unw_step (cursor)) >= 0))
     *f = c->frame_info;
 
@@ -267,8 +268,8 @@ trace_init_addr (unw_tdep_frame_t *f,
   return f;
 }
 
-/* Look up and if necessary fill in frame attributes for address RIP
-   in CACHE using current CFA, RBP and RSP values.  Uses CURSOR to
+/* Look up and if necessary fill in frame attributes for address PC
+   in CACHE using current CFA, FP and SP values.  Uses CURSOR to
    perform any unwind steps necessary to fill the cache.  Returns the
    frame cache slot which describes RIP. */
 static unw_tdep_frame_t *
@@ -332,7 +333,7 @@ trace_lookup (unw_cursor_t *cursor,
   return trace_init_addr (frame, cursor, cfa, pc, fp, sp);
 }
 
-/* Fast stack backtrace for x86-64.
+/* Fast stack backtrace for AArch64.
 
    This is used by backtrace() implementation to accelerate frequent
    queries for current stack, without any desire to unwind. It fills
@@ -350,8 +351,8 @@ trace_lookup (unw_cursor_t *cursor,
    stack to get the call tree as fast as possible but without any
    other details, for example profilers sampling the stack thousands
    to millions of times per second.  The routine handles the most
-   common x86-64 ABI stack layouts: CFA is RBP or RSP plus/minus
-   constant offset, return address is at CFA-8, and RBP and RSP are
+   common AArch64 ABI stack layouts: CFA is FP or SP plus/minus
+   constant offset, return address is in LR, and FP, LR and SP are
    either unchanged or saved on stack at constant offset from the CFA;
    the signal return frame; and frames without unwind info provided
    they are at the outermost (final) frame or can conservatively be

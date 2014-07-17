@@ -26,7 +26,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 
 #include "offsets.h"
 
-/*  int _Uaarch64_getcontext_trace (ucontext_t *ucp)
+/*  int _Uaarch64_getcontext_trace (unw_tdep_context_t *ucp)
 
   Saves limited machine context in UCP necessary for fast trace. If fast trace
   fails, caller will have to get the full context.
@@ -38,13 +38,12 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 _Uaarch64_getcontext_trace:
 	.cfi_startproc
 
-	/* Save only FP, LR, SP, PC - exclude this call. */
+	/* Save only FP, SP, PC - exclude this call. */
 	str x29, [x0, #(LINUX_UC_MCONTEXT_OFF + LINUX_SC_X29_OFF)]
 	mov x9, sp
 	str x9, [x0, #(LINUX_UC_MCONTEXT_OFF + LINUX_SC_SP_OFF)]
 	str x30, [x0, #(LINUX_UC_MCONTEXT_OFF + LINUX_SC_PC_OFF)]
 
-	mov x9, xzr
 	ret
 	.cfi_endproc
 	.size _Uaarch64_getcontext_trace, . - _Uaarch64_getcontext_trace
