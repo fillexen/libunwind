@@ -50,28 +50,7 @@ _Uarm_getcontext:
 	str r1, [r0, #15 * 4]
 	ldmfd sp!, {r0, r1}
 	bx lr
-
-/*  int _Uarm_getcontext_trace (unw_tdep_context_t *ucp)
-
-  Saves limited machine context in UCP necessary for fast trace. If fast trace
-  fails, caller will have to get the full context.
-*/
-	.global _Uarm_getcontext_trace
-	.hidden _Uarm_getcontext_trace
-	.type _Uarm_getcontext_trace, %function
-_Uarm_getcontext_trace:
-	.cfi_startproc
-
-	/* Save only R7, SP, PC - exclude this call. */
-	str r7, [r0, #7 * 4]
-	str sp, [r0, #13 * 4]
-	str lr, [r0, #15 * 4]
-	bx lr
-
-	.cfi_endproc
-	.size _Uarm_getcontext_trace, . - _Uarm_getcontext_trace
-
 #ifdef __linux__
-     /* We do not need executable stack.  */
-      .section        .note.GNU-stack,"",%progbits
+ /* We do not need executable stack.  */
+ .section  .note.GNU-stack,"",%progbits
 #endif

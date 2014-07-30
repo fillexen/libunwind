@@ -509,7 +509,7 @@ tdep_trace (unw_cursor_t *cursor, void **buffer, int *size)
         ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_R7_OFF, r7);
       if (likely(ret >= 0))
         ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_SP_OFF, sp);
-      /* Save the link register here in case we end up in a function that 
+      /* Save the link register here in case we end up in a function that
          doesn't save the link register in the prologue, e.g. kill. */
       if (likely(ret >= 0))
         ACCESS_MEM_FAST(ret, c->validate, d, cfa + LINUX_SC_LR_OFF, lr);

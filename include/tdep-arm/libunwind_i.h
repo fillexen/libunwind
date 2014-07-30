@@ -246,7 +246,7 @@ dwarf_put (struct dwarf_cursor *c, dwarf_loc_t loc, unw_word_t val)
 
 #endif /* !UNW_LOCAL_ONLY */
 
-#define tdep_getcontext_trace           UNW_ARCH_OBJ(getcontext_trace)
+#define tdep_getcontext_trace           unw_getcontext
 #define tdep_init_done			UNW_OBJ(init_done)
 #define tdep_init			UNW_OBJ(init)
 #define arm_find_proc_info		UNW_OBJ(find_proc_info)
@@ -306,7 +306,6 @@ extern int tdep_access_fpreg (struct cursor *c, unw_regnum_t reg,
 extern int tdep_trace (unw_cursor_t *cursor, void **addresses, int *n);
 extern void tdep_stash_frame (struct dwarf_cursor *c,
 			      struct dwarf_reg_state *rs);
-extern int tdep_getcontext_trace (unw_tdep_context_t *);
 
 /* unwinding method selection support */
 #define UNW_ARM_METHOD_ALL          0xFF
